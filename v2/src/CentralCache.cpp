@@ -3,7 +3,7 @@
 #include <cassert>
 #include <thread>
 
-namespace Kama_memoryPool
+namespace MyMemoryPool 
 {
 
 // 每次从PageCache获取span大小（以页为单位）

@@ -4,7 +4,7 @@
 
 #include "../include/MemoryPool.h"
 
-using namespace Kama_memoryPool;
+using namespace MyMemoryPool ;
 
 // 测试用例
 class P1 

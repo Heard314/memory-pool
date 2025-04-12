@@ -1,6 +1,6 @@
 #include "../include/MemoryPool.h"
 
-namespace Kama_memoryPool 
+namespace MyMemoryPool  
 {
 MemoryPool::MemoryPool(size_t BlockSize)
     : BlockSize_ (BlockSize)

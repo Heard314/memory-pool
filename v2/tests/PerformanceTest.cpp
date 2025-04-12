@@ -6,7 +6,7 @@
 #include <iomanip>
 #include <thread>
 
-using namespace Kama_memoryPool;
+using namespace MyMemoryPool ;
 using namespace std::chrono;
 
 // 计时器类

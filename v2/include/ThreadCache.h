@@ -1,7 +1,7 @@
 #pragma once
 #include "Common.h"
 
-namespace Kama_memoryPool 
+namespace MyMemoryPool  
 {
 
 // 线程本地缓存
@@ -20,7 +20,7 @@ private:
     ThreadCache() 
     {
         // 初始化自由链表和大小统计
-        freeList_.fill(nullptr);
+        freeList_.fill(nullptr); 
         freeListSize_.fill(0);
     }
     
@@ -32,6 +32,7 @@ private:
     bool shouldReturnToCentralCache(size_t index);
 private:
     // 每个线程的自由链表数组
+    // std::array.fill 将array中的每个值
     std::array<void*, FREE_LIST_SIZE>  freeList_; 
     std::array<size_t, FREE_LIST_SIZE> freeListSize_; // 自由链表大小统计   
 };

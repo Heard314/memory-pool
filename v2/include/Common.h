@@ -3,7 +3,7 @@
 #include <atomic>
 #include <array>
 
-namespace Kama_memoryPool 
+namespace MyMemoryPool  
 {
 // 对齐数和大小定义
 constexpr size_t ALIGNMENT = 8;
@@ -19,7 +19,7 @@ struct BlockHeader
 };
 
 // 大小类管理
-class SizeClass 
+class SizeUtil 
 {
 public:
     static size_t roundUp(size_t bytes)

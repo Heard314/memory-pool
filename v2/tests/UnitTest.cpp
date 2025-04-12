@@ -8,7 +8,7 @@
 #include <algorithm>
 #include <atomic>
 
-using namespace Kama_memoryPool;
+using namespace MyMemoryPool ;
 
 // 基础分配测试
 void testBasicAllocation() 

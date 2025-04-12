@@ -1,7 +1,7 @@
 #include "../include/ThreadCache.h"
 #include "../include/CentralCache.h"
 
-namespace Kama_memoryPool
+namespace MyMemoryPool 
 {
 
 void* ThreadCache::allocate(size_t size)
@@ -18,7 +18,7 @@ void* ThreadCache::allocate(size_t size)
         return malloc(size);
     }
 
-    size_t index = SizeClass::getIndex(size);
+    size_t index = SizeUtil::getIndex(size);
     
     // 更新自由链表大小
     freeListSize_[index]--;
@@ -43,7 +43,7 @@ void ThreadCache::deallocate(void* ptr, size_t size)
         return;
     }
 
-    size_t index = SizeClass::getIndex(size);
+    size_t index = SizeUtil::getIndex(size);
 
     // 插入到线程本地自由链表
     *reinterpret_cast<void**>(ptr) = freeList_[index];
@@ -97,10 +97,10 @@ void* ThreadCache::fetchFromCentralCache(size_t index)
 void ThreadCache::returnToCentralCache(void* start, size_t size)
 {
     // 根据大小计算对应的索引
-    size_t index = SizeClass::getIndex(size);
+    size_t index = SizeUtil::getIndex(size);
 
     // 获取对齐后的实际块大小
-    size_t alignedSize = SizeClass::roundUp(size);
+    size_t alignedSize = SizeUtil::roundUp(size);
 
     // 计算要归还内存块数量
     size_t batchNum = freeListSize_[index];
