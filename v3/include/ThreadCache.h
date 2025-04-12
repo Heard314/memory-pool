@@ -1,10 +1,10 @@
 #pragma once
 #include "Common.h"
-
-namespace Kama_memoryPool 
+#include <unordered_map>
+namespace MyMemoryPool 
 {
 
-// 线程本地缓存
+// 线程本地缓存 单例模式
 class ThreadCache
 {
 public:
@@ -15,10 +15,10 @@ public:
     }
 
     void* allocate(size_t size);
-    void deallocate(void* ptr, size_t size);
+    void deallocate(void* ptr);
 private:
     ThreadCache() = default;
-    // 从中心缓存获取内存
+    // 从中心缓存（各个线程共享的内存池）获取内存
     void* fetchFromCentralCache(size_t index);
     // 归还内存到中心缓存
     void returnToCentralCache(void* start, size_t size);
@@ -27,9 +27,9 @@ private:
     // 判断是否需要归还内存给中心缓存
     bool shouldReturnToCentralCache(size_t index);
 private:
-    // 每个线程的自由链表数组
-    std::array<void*, FREE_LIST_SIZE> freeList_;    
+    std::array<void*, FREE_LIST_SIZE> freeList_; // 每个线程的自由链表数组
     std::array<size_t, FREE_LIST_SIZE> freeListSize_; // 自由链表大小统计
+    std::unordered_map<void*, size_t> memSize; //分配出去的内存<-->内存大小//TODO待完成
 };
 
 } // namespace memoryPool

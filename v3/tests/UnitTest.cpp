@@ -8,7 +8,7 @@
 #include <algorithm>
 #include <atomic>
 
-using namespace Kama_memoryPool;
+using namespace MyMemoryPool ;
 
 // 基础分配测试
 void testBasicAllocation() 
@@ -18,17 +18,17 @@ void testBasicAllocation()
     // 测试小内存分配
     void* ptr1 = MemoryPool::allocate(8);
     assert(ptr1 != nullptr);
-    MemoryPool::deallocate(ptr1, 8);
+    MemoryPool::deallocate(ptr1);
 
     // 测试中等大小内存分配
     void* ptr2 = MemoryPool::allocate(1024);
     assert(ptr2 != nullptr);
-    MemoryPool::deallocate(ptr2, 1024);
+    MemoryPool::deallocate(ptr2);
 
     // 测试大内存分配（超过MAX_BYTES）
     void* ptr3 = MemoryPool::allocate(1024 * 1024);
     assert(ptr3 != nullptr);
-    MemoryPool::deallocate(ptr3, 1024 * 1024);
+    MemoryPool::deallocate(ptr3);
 
     std::cout << "Basic allocation test passed!" << std::endl;
 }
@@ -55,7 +55,7 @@ void testMemoryWriting()
         assert(ptr[i] == static_cast<char>(i % 256));
     }
 
-    MemoryPool::deallocate(ptr, size);
+    MemoryPool::deallocate(ptr);
     std::cout << "Memory writing test passed!" << std::endl;
 }
 
@@ -92,15 +92,14 @@ void testMultiThreading()
                 if (rand() % 2 && !allocations.empty()) 
                 {
                     size_t index = rand() % allocations.size();
-                    MemoryPool::deallocate(allocations[index].first, 
-                                         allocations[index].second);
+                    MemoryPool::deallocate(allocations[index].first);
                     allocations.erase(allocations.begin() + index);
                 }
             }
             
             for (const auto& alloc : allocations) 
             {
-                MemoryPool::deallocate(alloc.first, alloc.second);
+                MemoryPool::deallocate(alloc.first);
             }
         }
         catch (const std::exception& e) 
@@ -132,23 +131,23 @@ void testEdgeCases()
     // 测试0大小分配
     void* ptr1 = MemoryPool::allocate(0);
     assert(ptr1 != nullptr);
-    MemoryPool::deallocate(ptr1, 0);
+    MemoryPool::deallocate(ptr1);
     
     // 测试最小对齐大小
     void* ptr2 = MemoryPool::allocate(1);
     assert(ptr2 != nullptr);
     assert((reinterpret_cast<uintptr_t>(ptr2) & (ALIGNMENT - 1)) == 0);
-    MemoryPool::deallocate(ptr2, 1);
+    MemoryPool::deallocate(ptr2);
     
     // 测试最大大小边界
     void* ptr3 = MemoryPool::allocate(MAX_BYTES);
     assert(ptr3 != nullptr);
-    MemoryPool::deallocate(ptr3, MAX_BYTES);
+    MemoryPool::deallocate(ptr3);
     
     // 测试超过最大大小
     void* ptr4 = MemoryPool::allocate(MAX_BYTES + 1);
     assert(ptr4 != nullptr);
-    MemoryPool::deallocate(ptr4, MAX_BYTES + 1);
+    MemoryPool::deallocate(ptr4);
     
     std::cout << "Edge cases test passed!" << std::endl;
 }
@@ -176,7 +175,7 @@ void testStress()
     std::shuffle(allocations.begin(), allocations.end(), g);
     for (const auto& alloc : allocations) 
     {
-        MemoryPool::deallocate(alloc.first, alloc.second);
+        MemoryPool::deallocate(alloc.first);
     }
 
     std::cout << "Stress test passed!" << std::endl;

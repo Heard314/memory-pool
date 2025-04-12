@@ -2,7 +2,7 @@
 #include "Common.h"
 #include <mutex>
 
-namespace Kama_memoryPool
+namespace MyMemoryPool 
 {
 
 class CentralCache
@@ -14,7 +14,7 @@ public:
         return instance;
     }
 
-    void* fetchRange(size_t index, size_t batchNum);
+    void* fetchRange(size_t index, size_t batchNum,size_t& ActualBatchNum);
     void returnRange(void* start, size_t size, size_t bytes);
 
 private:
@@ -23,7 +23,8 @@ private:
     {
         for (auto& ptr : centralFreeList_)
         {
-            ptr.store(nullptr, std::memory_order_relaxed);
+            // ptr.store(nullptr, std::memory_order_relaxed);
+            ptr = nullptr;
         }
         // 初始化所有锁
         for (auto& lock : locks_)
@@ -36,7 +37,8 @@ private:
 
 private:
     // 中心缓存的自由链表
-    std::array<std::atomic<void*>, FREE_LIST_SIZE> centralFreeList_;
+    // std::array<std::atomic<void*>, FREE_LIST_SIZE> centralFreeList_; //? atomic有点没道理
+    std::array<void*,FREE_LIST_SIZE> centralFreeList_;
 
     // 用于同步的自旋锁
     std::array<std::atomic_flag, FREE_LIST_SIZE> locks_;

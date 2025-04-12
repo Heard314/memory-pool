@@ -6,7 +6,7 @@
 #include <iomanip>
 #include <thread>
 
-using namespace Kama_memoryPool;
+using namespace MyMemoryPool ;
 using namespace std::chrono;
 
 // 计时器类
@@ -56,7 +56,7 @@ public:
         // 释放预热内存
         for (const auto& [ptr, size] : warmupPtrs) 
         {
-            MemoryPool::deallocate(ptr, size);  // 使用实际分配的大小进行释放
+            MemoryPool::deallocate(ptr);  // 使用实际分配的大小进行释放
         }
         
         std::cout << "Warmup complete.\n\n";
@@ -84,14 +84,14 @@ public:
                 // 模拟真实使用：部分立即释放
                 if (i % 4 == 0) 
                 {
-                    MemoryPool::deallocate(ptrs.back(), SMALL_SIZE);
+                    MemoryPool::deallocate(ptrs.back());
                     ptrs.pop_back();
                 }
             }
             
             for (void* ptr : ptrs) 
             {
-                MemoryPool::deallocate(ptr, SMALL_SIZE);
+                MemoryPool::deallocate(ptr);
             }
             
             std::cout << "Memory Pool: " << std::fixed << std::setprecision(3) 
@@ -156,7 +156,7 @@ public:
                 {  // 75%的概率释放
                     size_t index = rand() % ptrs.size();
                     if (useMemPool) {
-                        MemoryPool::deallocate(ptrs[index].first, ptrs[index].second);
+                        MemoryPool::deallocate(ptrs[index].first);
                     } else {
                         delete[] static_cast<char*>(ptrs[index].first);
                     }
@@ -170,7 +170,7 @@ public:
             {
                 if (useMemPool) 
                 {
-                    MemoryPool::deallocate(ptr, size);
+                    MemoryPool::deallocate(ptr);
                 } 
                 else 
                 {
@@ -245,7 +245,7 @@ public:
                     size_t releaseCount = std::min(ptrs.size(), size_t(20));
                     for (size_t j = 0; j < releaseCount; ++j) 
                     {
-                        MemoryPool::deallocate(ptrs.back().first, ptrs.back().second);
+                        MemoryPool::deallocate(ptrs.back().first);
                         ptrs.pop_back();
                     }
                 }
@@ -253,7 +253,7 @@ public:
             
             for (const auto& [ptr, size] : ptrs) 
             {
-                MemoryPool::deallocate(ptr, size);
+                MemoryPool::deallocate(ptr);
             }
             
             std::cout << "Memory Pool: " << std::fixed << std::setprecision(3) 

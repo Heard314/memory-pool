@@ -1,7 +1,7 @@
 #pragma once
 #include "ThreadCache.h"
 
-namespace Kama_memoryPool
+namespace MyMemoryPool 
 {
 
 class MemoryPool
@@ -12,9 +12,9 @@ public:
         return ThreadCache::getInstance()->allocate(size);
     }
 
-    static void deallocate(void* ptr, size_t size)
+    static void deallocate(void* ptr)
     {
-        ThreadCache::getInstance()->deallocate(ptr, size);
+        ThreadCache::getInstance()->deallocate(ptr);
     }
 };
 
