@@ -1,10 +1,18 @@
 #include "PageCache.h"
 #include <sys/mman.h>
 #include <cstring>
+#include <cassert>
 
-namespace Kama_memoryPool
+namespace MyMemoryPool 
+{
+//TODO 回收被中心缓存退回的若干内存页
+void PageCache::returnPageVector(size_t index,std::vector<void*> returnPages)
 {
 
+}
+
+//TODO1 添加释放多页的方法，当页的连续数量达到某一值，则调用操作系统进行释放。这个方法还是很有必要性的
+//TODO2 添加释放整个内存池的方法
 void* PageCache::allocateSpan(size_t numPages)
 {
     std::lock_guard<std::mutex> lock(mutex_);
@@ -26,17 +34,17 @@ void* PageCache::allocateSpan(size_t numPages)
             freeSpans_.erase(it);
         }
 
-        // 如果span大于需要的numPages则进行分割
+        // 如果span大于需要的numPages则进行分割，避免浪费
         if (span->numPages > numPages) 
         {
             Span* newSpan = new Span;
             newSpan->pageAddr = static_cast<char*>(span->pageAddr) + 
-                                numPages * PAGE_SIZE;
-            newSpan->numPages = span->numPages - numPages;
+                                numPages * PAGE_SIZE; //页的起始地址
+            newSpan->numPages = span->numPages - numPages;  //剩余页数
             newSpan->next = nullptr;
 
             // 将超出部分放回空闲Span*列表头部
-            auto& list = freeSpans_[newSpan->numPages];
+            auto& list = freeSpans_[newSpan->numPages]; 
             newSpan->next = list;
             list = newSpan;
 
@@ -67,21 +75,22 @@ void PageCache::deallocateSpan(void* ptr, size_t numPages)
 {
     std::lock_guard<std::mutex> lock(mutex_);
 
-    // 查找对应的span，没找到代表不是PageCache分配的内存，直接返回
+    // 查找对应的span，没找到代表不是PageCache分配的内存，则进行报错
+    // 防护机制
     auto it = spanMap_.find(ptr);
-    if (it == spanMap_.end()) return;
+    assert(it != spanMap_.end());
 
     Span* span = it->second;
 
-    // 尝试合并相邻的span
+    // 尝试合并相邻的span（在下一碎片是空闲的情况下）
     void* nextAddr = static_cast<char*>(ptr) + numPages * PAGE_SIZE;
-    auto nextIt = spanMap_.find(nextAddr);
+    auto nextIt = spanMap_.find(nextAddr);//根据分配逻辑，可能存在该page下一个碎片
     
     if (nextIt != spanMap_.end())
     {
         Span* nextSpan = nextIt->second;
         
-        // 1. 首先检查nextSpan是否在空闲链表中
+        // 1. 首先检查nextSpan是否在空闲链表中//?是否可以再添加一个found的map映射用来优化。可以但没必要
         bool found = false;
         auto& nextList = freeSpans_[nextSpan->numPages];
         

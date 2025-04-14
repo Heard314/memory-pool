@@ -10,7 +10,7 @@ class ThreadCache
 public:
     static ThreadCache* getInstance()
     {
-        static thread_local ThreadCache instance;
+        static thread_local ThreadCache instance; //thread_local关键字使该变量线程独立，并且生命周期在线程中自动管理
         return &instance;
     }
 
@@ -29,7 +29,7 @@ private:
 private:
     std::array<void*, FREE_LIST_SIZE> freeList_; // 每个线程的自由链表数组
     std::array<size_t, FREE_LIST_SIZE> freeListSize_; // 自由链表大小统计
-    std::unordered_map<void*, size_t> memSize; //分配出去的内存<-->内存大小//TODO待完成
+    std::unordered_map<void*, size_t> memSize;
 };
 
 } // namespace memoryPool

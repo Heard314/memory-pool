@@ -2,20 +2,24 @@
 #include "Common.h"
 #include <map>
 #include <mutex>
+#include <unistd.h>
+#include <vector>
 
-namespace Kama_memoryPool
+namespace MyMemoryPool 
 {
 
 class PageCache
 {
 public:
-    static const size_t PAGE_SIZE = 4096; // 4K页大小
+    static const size_t PAGE_SIZE = 4096; // 4K页大小（根据实际系统来定的）
 
     static PageCache& getInstance()
     {
         static PageCache instance;
         return instance;
     }
+
+    void returnPageVector(size_t index, std::vector<void *> returnPages);
 
     // 分配指定页数的span
     void* allocateSpan(size_t numPages);
@@ -37,9 +41,10 @@ private:
     };
 
     // 按页数管理空闲span，不同页数对应不同Span链表
-    std::map<size_t, Span*> freeSpans_;
+    std::map<size_t, Span*> freeSpans_; //! 映射key至多只有256KB/4KB=56个，不会浪费过多的复杂度
     // 页号到span的映射，用于回收
-    std::map<void*, Span*> spanMap_;
+    std::map<void*, Span*> spanMap_; //只记录已经分配的空间
+    // std::map<void*, bool> spanAllocated; //记录内存块是否已分配
     std::mutex mutex_;
 };
 
