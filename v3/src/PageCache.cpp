@@ -5,13 +5,16 @@
 
 namespace MyMemoryPool 
 {
-//TODO 回收被中心缓存退回的若干内存页
-void PageCache::returnPageVector(size_t index,std::vector<void*> returnPages)
+//TODO 回收被中心缓存退回的若干页批量
+void PageCache::returnPageBatchVector(std::vector<void*> returnPages)
 {
-
+    for(auto pageBatch:returnPages)
+    {
+        deallocateSpan(pageBatch);
+    }
+    returnPages.clear();
 }
 
-//TODO1 添加释放多页的方法，当页的连续数量达到某一值，则调用操作系统进行释放。这个方法还是很有必要性的
 //TODO2 添加释放整个内存池的方法
 void* PageCache::allocateSpan(size_t numPages)
 {
@@ -27,6 +30,7 @@ void* PageCache::allocateSpan(size_t numPages)
         // 将取出的span从原有的空闲链表freeSpans_[it->first]中移除
         if (span->next)
         {
+            span->next->pre = nullptr;
             freeSpans_[it->first] = span->next;
         }
         else
@@ -41,95 +45,126 @@ void* PageCache::allocateSpan(size_t numPages)
             newSpan->pageAddr = static_cast<char*>(span->pageAddr) + 
                                 numPages * PAGE_SIZE; //页的起始地址
             newSpan->numPages = span->numPages - numPages;  //剩余页数
-            newSpan->next = nullptr;
-
+            newSpan->totalPages = span->totalPages;
+            newSpan->nextSplit = span->nextSplit;
+            newSpan->pre = nullptr;
             // 将超出部分放回空闲Span*列表头部
-            auto& list = freeSpans_[newSpan->numPages]; 
-            newSpan->next = list;
-            list = newSpan;
+            Span* currentFront = freeSpans_[newSpan->numPages]; 
+            newSpan->next = currentFront;
+            currentFront->pre = newSpan;
+            freeSpans_[newSpan->numPages] = newSpan;
 
+            span->nextSplit = newSpan;
+            newSpan->preSplit = span;
             span->numPages = numPages;
+            span->next = nullptr;
         }
 
         // 记录span信息用于回收
-        spanMap_[span->pageAddr] = span;
+        allocatedSpan_[span->pageAddr] = span;
         return span->pageAddr;
     }
 
     // 没有合适的span，向系统申请
-    void* memory = systemAlloc(numPages);
+    void* memory = systemAlloc(numPages); //申请内存
     if (!memory) return nullptr;
 
     // 创建新的span
     Span* span = new Span;
     span->pageAddr = memory;
+    span->totalPages = numPages;
     span->numPages = numPages;
     span->next = nullptr;
-
+    span->pre = nullptr;
+    span->nextSplit = nullptr;
+    span->preSplit = nullptr;
     // 记录span信息用于回收
-    spanMap_[memory] = span;
+    allocatedSpan_[memory] = span; //! 把页批量全部分配出去
     return memory;
 }
 
-void PageCache::deallocateSpan(void* ptr, size_t numPages)
+void PageCache::deallocateSpan(void* ptr)
 {
     std::lock_guard<std::mutex> lock(mutex_);
 
     // 查找对应的span，没找到代表不是PageCache分配的内存，则进行报错
     // 防护机制
-    auto it = spanMap_.find(ptr);
-    assert(it != spanMap_.end());
-
+    auto it = allocatedSpan_.find(ptr);
+    assert(it != allocatedSpan_.end());
+    size_t numPages = it->second->numPages;
     Span* span = it->second;
 
     // 尝试合并相邻的span（在下一碎片是空闲的情况下）
-    void* nextAddr = static_cast<char*>(ptr) + numPages * PAGE_SIZE;
-    auto nextIt = spanMap_.find(nextAddr);//根据分配逻辑，可能存在该page下一个碎片
-    
-    if (nextIt != spanMap_.end())
-    {
-        Span* nextSpan = nextIt->second;
-        
-        // 1. 首先检查nextSpan是否在空闲链表中//?是否可以再添加一个found的map映射用来优化。可以但没必要
-        bool found = false;
-        auto& nextList = freeSpans_[nextSpan->numPages];
-        
-        // 检查是否是头节点
-        if (nextList == nextSpan)
-        {
-            nextList = nextSpan->next;
-            found = true;
-        }
-        else if (nextList) // 只有在链表非空时才遍历
-        {
-            Span* prev = nextList;
-            while (prev->next)
-            {
-                if (prev->next == nextSpan)
-                {   
-                    // 将nextSpan从空闲链表中移除
-                    prev->next = nextSpan->next;
-                    found = true;
-                    break;
-                }
-                prev = prev->next;
-            }
-        }
+    void* nextAddr = span->nextSplit->pageAddr;
+    void* preAddr = span->preSplit->pageAddr;
 
-        // 2. 只有在找到nextSpan的情况下才进行合并
-        if (found)
-        {
-            // 合并span
-            span->numPages += nextSpan->numPages;
-            spanMap_.erase(nextAddr);
-            delete nextSpan;
-        }
+    if(nextAddr != nullptr&&allocatedSpan_.count(nextAddr)==0)
+    {
+        //一定在空闲列表中
+        Span* nextSpan = span->nextSplit;
+
+        detachFreeSpan(nextSpan);
+        detachFreeSpan(span);
+
+        //合并span+nextspan到span中
+        span->numPages += nextSpan->numPages;
+        span->nextSplit = nextSpan->nextSplit;
+        span->nextSplit->preSplit = span;
+        span->next = nextSpan->next;
+        span->next->pre = span;
+        delete nextSpan;    
+        addFreeSpan(span);
+    }
+    if(preAddr != nullptr&&allocatedSpan_.count(preAddr)==0)
+    {
+        Span* preSpan = span->preSplit;
+
+        detachFreeSpan(preSpan);
+        detachFreeSpan(span);
+
+        //合并preSpan和span为span
+        span->numPages += preSpan->numPages;
+        span->preSplit = preSpan->preSplit;
+        span->preSplit->nextSplit = span;
+        span->pre = preSpan->pre;
+        span->pre->next = span;
+        delete preSpan;
+        addFreeSpan(span);
     }
 
     // 将合并后的span通过头插法插入空闲列表
     auto& list = freeSpans_[span->numPages];
     span->next = list;
     list = span;
+}
+
+//! 只改变next和pre指向关系，方便后续处理
+void PageCache::detachFreeSpan(Span* span)
+{
+    //将合并前的块从freeSpans_中删除
+    size_t pageNum = span->numPages;
+    Span* currentSpan = freeSpans_[pageNum];
+    assert(currentSpan!=nullptr);
+    if(span==currentSpan) freeSpans_.erase(pageNum);
+    else
+    {
+        freeSpans_[pageNum] = currentSpan->next;
+        currentSpan->pre = nullptr;
+    }
+}
+
+void PageCache::addFreeSpan(Span* span)
+{
+    //将span添加至freelist
+    size_t pageNum = span->numPages;
+    assert(pageNum * PAGE_SIZE <= MAX_BYTES);
+    Span* currentSpan = freeSpans_[pageNum];
+    freeSpans_[pageNum] = span;
+    if(currentSpan != nullptr) 
+    {
+        currentSpan->pre = span;
+        span->next = currentSpan;
+    }
 }
 
 void* PageCache::systemAlloc(size_t numPages)
