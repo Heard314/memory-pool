@@ -11,7 +11,8 @@ constexpr size_t MAX_BYTES = 256 * 1024; // 256KB
 constexpr size_t FREE_LIST_SIZE = MAX_BYTES / ALIGNMENT; //ThreadCache中的内存链表的长度
 constexpr size_t PAGE_SIZE = 4096; //4KB
 constexpr size_t MEM_SIZE = 256 * PAGE_SIZE; //1MB 256页
-constexpr size_t MAX_SINGLE_FRESS_LIST_SIZE = 256 * PAGE_SIZE; //1MB
+constexpr size_t MAX_SINGLE_FREE_LIST_SIZE = 256 * PAGE_SIZE; //1MB
+constexpr size_t RESERVE_SINGLE_FREE_LIST_SIZE = 64 * PAGE_SIZE; //256KB
 
 // 内存块头部信息
 struct BlockHeader

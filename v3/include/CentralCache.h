@@ -32,15 +32,19 @@ public:
     };
 
     void* fetchRange(size_t index, size_t batchNum,size_t& ActualBatchNum);
-    void returnRange(void* start, size_t returnNum, size_t bytes);
+    void popBlockFromFreeList(size_t index);
 
-    void updatePageBatchStats(void* start, size_t num, size_t size, void* &nowPage,PageBatchStat &nowStat);
+    void returnRange(void *start, size_t returnNum, size_t bytes);
 
-    void updateReturnPageBatchStats(void *start, size_t index);
+    // void updatePageBatchStats(void *start, size_t num, size_t size, void *&nowPage);
 
-    void *returnPageCache(void *start, size_t returnPageNum, size_t index);
+    void pushBlockForFreeList(void *returnBlock, size_t index);
 
-    void removePageFromFreeList(size_t index, void *startPage);
+    void *returnPageCache(size_t index);
+
+    void detachPageBatchFromFreeList(size_t index, void *pageBatchStart);
+
+    void removePageBatchFromFreeList(size_t index, void *pageBatchStart);
 
 private:
     // 相互是还所有原子指针为nullptr
@@ -74,13 +78,17 @@ private:
 
     //TODO 研究unordered_map的作用
     //TODO 以下链表还需要再研究一下初始化，清0等操作
-    std::unordered_map<void*,PageBatchStat> pageBatchStats; //每个页目前的内存退回情况，key是页的起始地址，val是存储该页状态的PageBatchStat
-    std::unordered_map<void*,void*> ownPageBatch; //方便每个内存块找到所属页，key是内存块的起始地址，val是内存块所在页的起始地址
-    //为了便于更新退回某一内存页后，更新空闲链表中的内存，应该把一整页的内存聚合起来，
-    std::unordered_map<void*,void*> beginBlock; //记录某个页的第一块被退回的内存块，key是页的起始地址，val是该页第一个被退回的块的起始地址
-    std::unordered_map<void*,void*> beforeBlock; //记录某个页的第一块被退回的内存块的前一块内存块地址，key是页中该页第一个被退回的块的起始地址，val是其在空闲链表中的前一个内存块的起始地址//TODO 更新到全局中去，需要额外维护 //! 最小块的大小不足以存放两个地址指针
-    std::unordered_map<void*,void*> nextBlock; //记录了页的最后一块被退回的内存块，key是页的起始地址，val是该页最后一个被退回的块的起始地址
-    std::unordered_set<void*> alreadyPage;  //存储了能够被退回的页的地址，需要考虑某一个页的内存被重新使用，存储了可以被退回的页的起始地址
+    std::unordered_map<void*,PageBatchStat> pageBatchStats_; //每个页批量目前的内存退回情况，key是页批量的起始地址，val是存储该页批量状态的PageBatchStat //TODO 其作用机制有待商榷，至少
+    std::unordered_map<void*,void*> ownPageBatch_; //方便每个内存块找到所属页批量，key是内存块的起始地址，val是内存块所在页批量的起始地址
+    //为了便于更新退回某一内存页批量后，更新空闲链表中的内存，应该把一整页批量的内存聚合起来，
+    std::unordered_map<void*,void*> beginBlock_; //记录某个页批量的第一块内存块，key是页批量批量的起始地址，val是在空闲列表中该页批量第一个起始地址 //TODO 其作用机制有待商榷
+    std::unordered_map<void*,void*> beforeBlock_; //记录某个页批量的第一块内存块的前一块内存块地址，key是页批量的起始地址，val是其在空闲链表中的前一个内存块的起始地址
+    std::unordered_map<void*,void*> endBlock_; //记录了页批量的最后一块内存块，key是页批量的起始地址，val是在空闲列表中该页批量最后一个块的起始地址 //TODO 其作用机制有待商榷
+    std::unordered_set<void*> alreadyPageBatch_;  //存储了可以被退回的页批量的起始地址
+    //! 只有已经得到过一次分配的内存块才可以算作被退回
+    //! beginBlock和endBlock的意义需要有所改变，任何内存块的进出都需要进行维护，在页批量得到分配时就需要进行分配
+    //! pageBatchStats_也需要做修改，只有已分配的内存块发生了进出才做维护
+    std::unordered_set<void*> allocatedBlock_; //存储了已经得到分配的Block //TODO 更新到整个项目中
 };
 
 } // namespace memoryPool
