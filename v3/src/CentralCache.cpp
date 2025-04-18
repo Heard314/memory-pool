@@ -52,8 +52,8 @@ void* CentralCache::fetchRange(size_t index, size_t batchNum, size_t& actualBatc
             //统计每个页
             //统计第一页
             void* nowPageBatch = result;
-            assert(pageBatchStats_.count(nowPageBatch)==0);
-            pageBatchStats_[nowPageBatch] = PageBatchStat(totalBlocks,0);
+            assert(pageBatchStats_[index].count(nowPageBatch)==0);
+            pageBatchStats_[index][nowPageBatch] = PageBatchStat(totalBlocks,0);
 
             //记录内存块与所属页之间的映射
             // ownPageBatch_[start] = nowPageBatch;
@@ -65,8 +65,8 @@ void* CentralCache::fetchRange(size_t index, size_t batchNum, size_t& actualBatc
                 void* current = start + i * size;
                     
                 //更新页批量的统计信息 
-                allocatedBlock_.insert(current);
-                ownPageBatch_[current] = nowPageBatch;
+                allocatedBlock_[index].insert(current);
+                ownPageBatch_[index][current] = nowPageBatch;
                 void* next = start + (i+1) * size;
                 *reinterpret_cast<void**>(current) = next;
             }
@@ -83,7 +83,7 @@ void* CentralCache::fetchRange(size_t index, size_t batchNum, size_t& actualBatc
                     void* current = start + i * size;
                     void* next = start + (i+1) * size;
                     //!将暂时保留的页批量也做统计信息更新
-                    ownPageBatch_[current] = nowPageBatch;
+                    ownPageBatch_[index][current] = nowPageBatch;
                     *reinterpret_cast<void**>(current) = next;
                 }
                 void* remainEnd = start + (totalBlocks - 1) * size;
@@ -95,9 +95,9 @@ void* CentralCache::fetchRange(size_t index, size_t batchNum, size_t& actualBatc
                 centralFreeListTail_[index] = remainEnd;
                 centralFreeListSize_[index] += totalBlocks-allocBlocks;
 
-                beginBlock_[nowPageBatch] = remainStart;
-                endBlock_[nowPageBatch] = remainEnd;
-                beforeBlock_[nowPageBatch] = nullptr;
+                beginBlock_[index][nowPageBatch] = remainStart;
+                endBlock_[index][nowPageBatch] = remainEnd;
+                beforeBlock_[index][nowPageBatch] = nullptr;
             }
         }
         else // 如果中心缓存有index对应大小的内存块
@@ -137,38 +137,38 @@ void CentralCache::popBlockFromFreeList(size_t index)
 {
     assert(centralFreeList_[index]==nullptr);
     void* current = centralFreeList_[index];
-    void* pageBatchStart = ownPageBatch_[current];
+    void* pageBatchStart = ownPageBatch_[index][current];
 
     //暂停准备回收
-    if(alreadyPageBatch_.count(pageBatchStart)) alreadyPageBatch_.erase(pageBatchStart);
+    if(alreadyPageBatch_[index].count(pageBatchStart)) alreadyPageBatch_[index].erase(pageBatchStart);
     //维护空闲链表信息
     centralFreeListSize_[index]--;
     centralFreeList_[index] = *reinterpret_cast<void**>(current);
     if(centralFreeList_[index] == nullptr) centralFreeListTail_[index] = nullptr;
 
-    if(allocatedBlock_.count(current))
+    if(allocatedBlock_[index].count(current))
     {
-        pageBatchStats_[pageBatchStart].current--;
+        pageBatchStats_[index][pageBatchStart].current--;
     }
     else
     {
-        allocatedBlock_.insert(current);
+        allocatedBlock_[index].insert(current);
     }
 
-    bool isOnlyOneBlock = (beginBlock_[pageBatchStart]==endBlock_[pageBatchStart]);
+    bool isOnlyOneBlock = (beginBlock_[index][pageBatchStart]==endBlock_[index][pageBatchStart]);
     void* nxtBlock = centralFreeList_[index];
     if(isOnlyOneBlock) 
     {
-        beginBlock_.erase(pageBatchStart);
-        endBlock_.erase(pageBatchStart);
-        beforeBlock_.erase(pageBatchStart);
+        beginBlock_[index].erase(pageBatchStart);
+        endBlock_[index].erase(pageBatchStart);
+        beforeBlock_[index].erase(pageBatchStart);
         
-        void* nxtBatchBlock = *reinterpret_cast<void**>(endBlock_[pageBatchStart]);
-        if(nxtBatchBlock!=nullptr) beforeBlock_[ownPageBatch_[nxtBatchBlock]] = nullptr;
+        void* nxtBatchBlock = *reinterpret_cast<void**>(endBlock_[index][pageBatchStart]);
+        if(nxtBatchBlock!=nullptr) beforeBlock_[index][ownPageBatch_[index][nxtBatchBlock]] = nullptr;
     }
     else 
     {
-        beginBlock_[pageBatchStart] = nxtBlock;
+        beginBlock_[index][pageBatchStart] = nxtBlock;
     }
 }
 
@@ -210,46 +210,46 @@ void CentralCache::returnRange(void* start, size_t returnNum, size_t index)
 inline void CentralCache::pushBlockForFreeList(void* returnBlock, size_t index)
 {
     //将被退回的内存块放到空闲链表中
-    void* returnPageBatchStart = ownPageBatch_[returnBlock];
+    void* returnPageBatchStart = ownPageBatch_[index][returnBlock];
     void* current = centralFreeList_[index]; //当前空闲链表中的首元素
-    void* currentPageBatchStart = ownPageBatch_[current];
+    void* currentPageBatchStart = ownPageBatch_[index][current];
     //TODO 待测试，归还的内存块拼接起来
     //当这个退回的内存块是该页批量中第一个被退回的数据时，将这个内存块放在表头
     //! 这样做的潜在好处：提高程序的局部性，该内存可能会被原线程重新利用；
     //! 能够保护之前具有更多被退回内存块的页批量
-    if(beginBlock_.count(returnPageBatchStart)==0) {
-        beginBlock_[returnPageBatchStart] = returnBlock;
+    if(beginBlock_[index].count(returnPageBatchStart)==0) {
+        beginBlock_[index][returnPageBatchStart] = returnBlock;
         *reinterpret_cast<void**>(returnBlock) = current;
-        beforeBlock_[currentPageBatchStart] = returnBlock;
-        endBlock_[returnPageBatchStart] = returnBlock;
-        beforeBlock_[returnPageBatchStart] = nullptr;
+        beforeBlock_[index][currentPageBatchStart] = returnBlock;
+        endBlock_[index][returnPageBatchStart] = returnBlock;
+        beforeBlock_[index][returnPageBatchStart] = nullptr;
     }
     else //!否则将该内存块放到所属页批量的后面
     {
-        void* endNxtBlockStart = *reinterpret_cast<void**>(endBlock_[returnPageBatchStart]);
+        void* endNxtBlockStart = *reinterpret_cast<void**>(endBlock_[index][returnPageBatchStart]);
         *reinterpret_cast<void**>(returnBlock) = endNxtBlockStart;
-        *reinterpret_cast<void**>(endBlock_[returnPageBatchStart]) = returnBlock;
-        endBlock_[returnPageBatchStart] = returnBlock;
-        beforeBlock_[ownPageBatch_[endNxtBlockStart]] = returnBlock;
+        *reinterpret_cast<void**>(endBlock_[index][returnPageBatchStart]) = returnBlock;
+        endBlock_[index][returnPageBatchStart] = returnBlock;
+        beforeBlock_[index][ownPageBatch_[index][endNxtBlockStart]] = returnBlock;
     }   
     
 
     char* _returnBlock = static_cast<char*>(returnBlock); //方便按照以字节大小进行地址的移动
     
-    assert(allocatedBlock_.count(returnBlock));
-    pageBatchStats_[returnPageBatchStart].current++;
+    assert(allocatedBlock_[index].count(returnBlock));
+    pageBatchStats_[index][returnPageBatchStart].current++;
     
-    if(pageBatchStats_[returnPageBatchStart].current==pageBatchStats_[returnPageBatchStart].total)
+    if(pageBatchStats_[index][returnPageBatchStart].current==pageBatchStats_[index][returnPageBatchStart].total)
     {
         //记录该内存可以回收
-        alreadyPageBatch_.insert(returnPageBatchStart);
+        alreadyPageBatch_[index].insert(returnPageBatchStart);
         //维护链表顺序
-        void* beginBlock = beginBlock_[returnPageBatchStart];
-        void* lastBlock = endBlock_[returnPageBatchStart];
+        void* beginBlock = beginBlock_[index][returnPageBatchStart];
+        void* lastBlock = endBlock_[index][returnPageBatchStart];
         detachPageBatchFromFreeList(index,returnPageBatchStart);
         //该内存移动到末尾 
         *reinterpret_cast<void**>(centralFreeListTail_[index]) = beginBlock;
-        beforeBlock_[returnPageBatchStart] = centralFreeListTail_[index];
+        beforeBlock_[index][returnPageBatchStart] = centralFreeListTail_[index];
         centralFreeListTail_[index] = lastBlock;
     }
 
@@ -270,22 +270,16 @@ inline void CentralCache::pushBlockForFreeList(void* returnBlock, size_t index)
 
 void* CentralCache::returnPageCache(size_t index)
 {   
-    size_t blockSize = (index+1) * ALIGNMENT;
-    size_t maxReturnNum = std::max((size_t)1,(centralFreeListSize_[index] * blockSize - RESERVE_SINGLE_FREE_LIST_SIZE) / blockSize);
-    size_t actualReturnNum = 0;
     std::vector<void*> returnPageBatchs;
-    for(auto it = alreadyPageBatch_.begin();it != alreadyPageBatch_.end();)
+    for(auto it = alreadyPageBatch_[index].begin();it != alreadyPageBatch_[index].end();)
     {
-        if(actualReturnNum < maxReturnNum)
-        {
-            returnPageBatchs.push_back(*it);
-            //将PageBatch从空闲列表中删除
-            removePageBatchFromFreeList(index,reinterpret_cast<void*>(*it));
-            it = alreadyPageBatch_.erase(it);
-            actualReturnNum++;
-        } else break;
+        void* pageBatchStart = *it;
+        returnPageBatchs.push_back(pageBatchStart);
+        //将PageBatch从空闲列表中删除
+        removePageBatch(index,reinterpret_cast<void*>(*it));
+        it = alreadyPageBatch_[index].erase(it);
     }
-    PageCache::getInstance().returnPageBatchVector(index,returnPageBatchs);
+    PageCache::getInstance().returnPageBatchVector(returnPageBatchs);
 }
 
 //此操作将目标PageBatch从空闲链表中分离出去，暂时不做删除，后续可能会用于移动该页批量
@@ -293,17 +287,17 @@ void* CentralCache::returnPageCache(size_t index)
 inline void CentralCache::detachPageBatchFromFreeList(size_t index,void* pageBatchStart)
 {
     //维护链表顺序
-    void* beginBlock = beginBlock_[pageBatchStart];
-    void* beforeBlock = beforeBlock_[pageBatchStart];
-    void* lastBlock = endBlock_[pageBatchStart];
+    void* beginBlock = beginBlock_[index][pageBatchStart];
+    void* beforeBlock = beforeBlock_[index][pageBatchStart];
+    void* lastBlock = endBlock_[index][pageBatchStart];
     void* nxtBlock = *reinterpret_cast<void**>(lastBlock);
     *reinterpret_cast<void**>(beforeBlock) = nxtBlock;
     *reinterpret_cast<void**>(lastBlock) = nullptr;
 
     //清空当前页批量的前置信息
-    beforeBlock_[pageBatchStart] = nullptr;
+    beforeBlock_[index][pageBatchStart] = nullptr;
     //维护剩余空闲内存块的beforeBlock的顺序
-    if(nxtBlock!=nullptr) beforeBlock_[ownPageBatch_[nxtBlock]] = beforeBlock;
+    if(nxtBlock!=nullptr) beforeBlock_[index][ownPageBatch_[index][nxtBlock]] = beforeBlock;
 
     //维护centralFreeList的一系列信息
     if(beginBlock == centralFreeList_[index]) centralFreeList_[index] = nxtBlock;
@@ -311,30 +305,32 @@ inline void CentralCache::detachPageBatchFromFreeList(size_t index,void* pageBat
 }
 
 //此操作首先将目标PageBatch从空闲链表中分离，并删除该PageBatch的相关信息
-inline void CentralCache::removePageBatchFromFreeList(size_t index,void* pageBatchStart)
+inline void CentralCache::removePageBatch(size_t index,void* pageBatchStart)
 {
     // void* nxtBlock_ = *reinterpret_cast<void**>(lastBlock_);
     detachPageBatchFromFreeList(index, pageBatchStart);
 
     //修改空闲链表大小
-    centralFreeListSize_[index] -= pageBatchStats_[pageBatchStart].total;
+    centralFreeListSize_[index] -= pageBatchStats_[index][pageBatchStart].total;
     //更新ownPageBatch_
-    void* beginBlock = beginBlock_[pageBatchStart];
+    void* beginBlock = beginBlock_[index][pageBatchStart];
     
-    void* lastBlock = endBlock_[pageBatchStart];
+    void* lastBlock = endBlock_[index][pageBatchStart];
 
     while(beginBlock != lastBlock)
     {
-        ownPageBatch_.erase(beginBlock);
+        ownPageBatch_[index].erase(beginBlock);
+        allocatedBlock_[index].erase(beginBlock);
         beginBlock = *reinterpret_cast<void**>(beginBlock);
     }
-    if(lastBlock!=nullptr) ownPageBatch_.erase(lastBlock);
+    ownPageBatch_[index].erase(lastBlock);
+    allocatedBlock_[index].erase(lastBlock);
 
     //删除其余内存块前后关系信息
-    pageBatchStats_.erase(pageBatchStart);
-    beginBlock_.erase(pageBatchStart);
-    endBlock_.erase(pageBatchStart);
-    beforeBlock_.erase(pageBatchStart);
+    pageBatchStats_[index].erase(pageBatchStart);
+    beginBlock_[index].erase(pageBatchStart);
+    endBlock_[index].erase(pageBatchStart);
+    beforeBlock_[index].erase(pageBatchStart);
 }
 
 void* CentralCache::fetchFromPageCache(size_t size,size_t& actualNumPages)

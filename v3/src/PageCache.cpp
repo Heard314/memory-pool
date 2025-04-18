@@ -131,7 +131,7 @@ void PageCache::deallocateSpan(void* ptr)
         delete preSpan;
         addFreeSpan(span);
     }
-
+    allocatedSpan_.erase(it); //不再使用该块内存，移除
     // 将合并后的span通过头插法插入空闲列表
     auto& list = freeSpans_[span->numPages];
     span->next = list;

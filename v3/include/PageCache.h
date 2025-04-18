@@ -4,6 +4,7 @@
 #include <mutex>
 #include <unistd.h>
 #include <vector>
+#include <cassert>
 
 namespace MyMemoryPool 
 {
@@ -27,10 +28,43 @@ public:
     void deallocateSpan(void *ptr);
 
 private:
-    static PageCache instance;
+    static PageCache instance; //程序退出时，自动析构
 
     PageCache() = default;
     
+    ~PageCache()
+    {
+        std::lock_guard<std::mutex> lock(mutex_); //nice，避免其他线程还在运行时，把资源释放掉
+
+        // 释放所有 allocatedSpan_ 中仍挂着的页块
+        for (auto& entry : allocatedSpan_)
+        {
+            Span* span = entry.second;
+
+            if (span)
+            {
+                deallocateSpan(span->pageAddr); //释放内存
+                delete span;            // 释放 Span 对象
+            }
+        }
+        allocatedSpan_.clear();
+
+        // 释放所有 freeSpans_ 中未分配的页块
+        for (auto& entry : freeSpans_)
+        {
+            Span* span = entry.second;
+            while (span)
+            {
+                assert(span->totalPages == span->numPages);
+                munmap(span->pageAddr, span->totalPages * PAGE_SIZE);
+                Span* next = span->next;
+                delete span; // 释放 Span 结构本身
+                span = next;
+            }
+        }
+        freeSpans_.clear();
+    }
+
     // 向系统申请内存
     void* systemAlloc(size_t numPages);
 private:
