@@ -1,0 +1,42 @@
+#IncludeRegexLine: ^[ 	]*[#%][ 	]*(include|import)[ 	]*[<"]([^">]+)([">])
+
+#IncludeRegexScan: ^.*$
+
+#IncludeRegexComplain: ^$
+
+#IncludeRegexTransform: 
+
+/mnt/d/Project/C++Project/memory-pool/v3/include/Common.h
+cstddef
+-
+atomic
+-
+array
+-
+
+/mnt/d/Project/C++Project/memory-pool/v3/include/MemoryPool.h
+ThreadCache.h
+/mnt/d/Project/C++Project/memory-pool/v3/include/ThreadCache.h
+
+/mnt/d/Project/C++Project/memory-pool/v3/include/ThreadCache.h
+Common.h
+/mnt/d/Project/C++Project/memory-pool/v3/include/Common.h
+unordered_map
+-
+
+/mnt/d/Project/C++Project/memory-pool/v3/tests/PerformanceTest.cpp
+../include/MemoryPool.h
+/mnt/d/Project/C++Project/memory-pool/v3/include/MemoryPool.h
+iostream
+-
+vector
+-
+chrono
+-
+random
+-
+iomanip
+-
+thread
+-
+
